@@ -302,7 +302,18 @@ em { font-style: italic; font-weight: 500; color: var(--g66-blue-soft); }
   margin-bottom: 36px;
 }
 .title-line { display: block; overflow: hidden; }
-.title-word { display: inline-block; transform: translateY(110%); }
+.title-word {
+  display: inline-block;
+  transform: translateY(110%);
+  animation: titleSlideUp 1.1s var(--ease-out) forwards;
+}
+.title-line:nth-child(1) .title-word { animation-delay: 0.2s; }
+.title-line:nth-child(2) .title-word, .title-line:nth-child(2) .title-x { animation-delay: 0.35s; }
+.title-line:nth-child(3) .title-word { animation-delay: 0.45s; }
+.title-line:nth-child(4) .title-word { animation-delay: 0.55s; }
+@keyframes titleSlideUp {
+  to { transform: translateY(0); }
+}
 .title-word-accent {
   background: linear-gradient(135deg, #fff 0%, var(--g66-lavender) 60%, var(--g66-blue-soft) 100%);
   -webkit-background-clip: text;
@@ -317,6 +328,7 @@ em { font-style: italic; font-weight: 500; color: var(--g66-blue-soft); }
   color: var(--g66-blue-soft);
   transform: translateY(110%);
   opacity: 0.85;
+  animation: titleSlideUp 1.1s var(--ease-out) forwards;
 }
 
 .hero-sub {
@@ -326,8 +338,11 @@ em { font-style: italic; font-weight: 500; color: var(--g66-blue-soft); }
   margin: 0 auto 56px;
   line-height: 1.5;
   font-weight: 300;
-  opacity: 0;
-  transform: translateY(20px);
+  animation: heroFadeIn 0.9s 1.1s var(--ease-out) both;
+}
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .hero-meta {
@@ -340,8 +355,7 @@ em { font-style: italic; font-weight: 500; color: var(--g66-blue-soft); }
   border: 1px solid var(--border);
   border-radius: 100px;
   margin-bottom: 48px;
-  opacity: 0;
-  transform: translateY(20px);
+  animation: heroFadeIn 0.9s 1.3s var(--ease-out) both;
 }
 .meta-block { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .meta-label {
@@ -359,7 +373,7 @@ em { font-style: italic; font-weight: 500; color: var(--g66-blue-soft); }
 }
 .meta-divider { width: 1px; height: 28px; background: var(--border-strong); }
 
-.hero-partners { opacity: 0; transform: translateY(20px); }
+.hero-partners { animation: heroFadeIn 0.9s 1.5s var(--ease-out) both; }
 .partners-label {
   display: block;
   font-family: var(--font-display);
@@ -1386,6 +1400,21 @@ em { font-style: italic; font-weight: 500; color: var(--g66-blue-soft); }
   opacity: 0.85;
 }
 
+/* ════════ IntersectionObserver fade-in system (a prueba de balas) ════════ */
+.anim-in {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out);
+}
+.anim-in.anim-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Reduced motion: no animar, mostrar directo */
+@media (prefers-reduced-motion: reduce) {
+  .anim-in { opacity: 1; transform: none; transition: none; }
+}
+
 </style>
 </head>
 <body>
@@ -1950,34 +1979,53 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
   });
 });
 
-/* ════════ INIT ON LOAD ════════ */
-window.addEventListener('load', () => {
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(initAll);
-  } else {
+/* ════════ INIT - a prueba de balas ════════ */
+let initialized = false;
+function safeInit() {
+  if (initialized) return;
+  initialized = true;
+  try {
     initAll();
+  } catch (e) {
+    console.error('Init error:', e);
+    // Si algo explota, al menos mostrar todos los anim-in
+    document.querySelectorAll('.anim-in').forEach(el => el.classList.add('anim-visible'));
   }
-});
+}
+
+// Disparar en cualquiera de estos eventos (el primero que llegue)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', safeInit);
+} else {
+  safeInit();
+}
+window.addEventListener('load', safeInit);
+// Última red de seguridad: 1.5s después de la carga del script
+setTimeout(safeInit, 1500);
 
 function initAll() {
-  initHero();
-  initRevealText();
-  initSectionAnimations();
-  initCounters();
-  initParticles();
-  initPlanePath();
-  initMouseParallax();
-  ScrollTrigger.refresh();
+  const tryRun = (fn, name) => {
+    try { fn(); } catch (e) { console.warn(`${name} falló:`, e); }
+  };
+  tryRun(initHero, 'initHero');
+  tryRun(initRevealText, 'initRevealText');
+  tryRun(initSectionAnimations, 'initSectionAnimations');
+  tryRun(initCounters, 'initCounters');
+  tryRun(initParticles, 'initParticles');
+  tryRun(initPlanePath, 'initPlanePath');
+  tryRun(initMouseParallax, 'initMouseParallax');
+  if (typeof ScrollTrigger !== 'undefined') {
+    try { ScrollTrigger.refresh(); } catch (e) {}
+  }
 }
 
 /* ════════ HERO INTRO ════════ */
 function initHero() {
+  // El CSS hace los fade-ins (heroFadeIn). El JS solo anima el title con SplitType
+  // y parallax al scrollear.
   const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
   tl.to('.title-word', { y: 0, duration: 1.1, stagger: 0.08 }, 0.2)
-    .to('.title-x', { y: 0, opacity: 0.85, duration: 0.8 }, 0.5)
-    .to('.hero-sub', { opacity: 1, y: 0, duration: 0.9 }, 0.9)
-    .to('.hero-meta', { opacity: 1, y: 0, duration: 0.9 }, 1.1)
-    .to('.hero-partners', { opacity: 1, y: 0, duration: 0.9 }, 1.3);
+    .to('.title-x', { y: 0, opacity: 0.85, duration: 0.8 }, 0.5);
 
   if (!REDUCED) {
     gsap.to('.hero-content', {
@@ -1989,65 +2037,90 @@ function initHero() {
       scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1 }
     });
   }
+
+  // 🛡️ Safety: si las title-words quedan invisibles después de 2.5s, forzar visible
+  setTimeout(() => {
+    document.querySelectorAll('.title-word, .title-x').forEach(el => {
+      gsap.set(el, { y: 0, opacity: 1 });
+    });
+  }, 2500);
 }
 
-/* ════════ TEXT REVEAL (SplitType) ════════ */
+/* ════════ TEXT REVEAL (SplitType) - a prueba de fallos ════════ */
 function initRevealText() {
   document.querySelectorAll('.reveal-text').forEach((el) => {
-    const split = new SplitType(el, { types: 'words' });
-    gsap.set(split.words, { yPercent: 110, opacity: 0 });
-    gsap.to(split.words, {
-      yPercent: 0, opacity: 1,
-      duration: 0.9, stagger: 0.04, ease: 'power3.out',
-      scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none reverse' },
-    });
+    // Si SplitType falla, el texto sigue siendo visible
+    if (typeof SplitType === 'undefined') return;
+
+    try {
+      const split = new SplitType(el, { types: 'words' });
+      if (!split.words || split.words.length === 0) return;
+
+      gsap.set(split.words, { yPercent: 110, opacity: 0 });
+      gsap.to(split.words, {
+        yPercent: 0, opacity: 1,
+        duration: 0.9, stagger: 0.04, ease: 'power3.out',
+        scrollTrigger: {
+          trigger: el,
+          start: 'top 95%',
+          toggleActions: 'play none none none',
+          once: true,
+          onLeaveBack: () => {} // no resetea
+        },
+      });
+
+      // 🛡️ SAFETY: si después de 3s sigue invisible, mostrar
+      setTimeout(() => {
+        gsap.set(split.words, { yPercent: 0, opacity: 1 });
+      }, 3500);
+    } catch (e) {
+      console.warn('SplitType falló para', el, e);
+    }
   });
 }
 
-/* ════════ SECTION FADE-IN ════════ */
+/* ════════ SECTION FADE-IN — IntersectionObserver (a prueba de balas) ════════ */
 function initSectionAnimations() {
-  const fadeIn = (selector, opts = {}) => {
-    const els = document.querySelectorAll(selector);
-    if (!els.length) return;
-    gsap.from(selector, {
-      y: opts.y || 50,
-      opacity: 0,
-      duration: opts.duration || 0.9,
-      stagger: opts.stagger || 0.1,
-      ease: 'power3.out',
-      scrollTrigger: { trigger: opts.trigger || selector, start: opts.start || 'top 85%' },
+  // Selectores que queremos animar al entrar al viewport
+  const animSelectors = [
+    '.story-card', '.route-map', '.team-meta-card', '.creator-card',
+    '.kpi-card', '.opp-include-card', '.dest-card',
+    '.inv-spotlight', '.inv-note', '.opp-lead',
+    '.closing-sub', '.closing-cta', '.closing-meta', '.closing-logo'
+  ];
+
+  // Aplicar clase "anim-in" a todos los elementos relevantes
+  animSelectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach((el, idx) => {
+      el.classList.add('anim-in');
+      // Stagger por orden de aparición dentro del padre
+      el.style.transitionDelay = (idx * 80) + 'ms';
     });
-  };
+  });
 
-  fadeIn('.story-card', { trigger: '.story-grid', stagger: 0.12 });
-  fadeIn('.route-map', { duration: 1.1 });
-  fadeIn('.team-meta-card', { trigger: '.team-meta', stagger: 0.12 });
-  fadeIn('.creator-card', { trigger: '.team-grid', stagger: 0.08, duration: 0.8 });
-  fadeIn('.kpi-card', { trigger: '.hyrox-kpis', stagger: 0.1 });
-  fadeIn('.opp-include-card', { trigger: '.opp-includes', stagger: 0.15 });
-  fadeIn('.dest-card', { trigger: '.inv-destinations', stagger: 0.12 });
+  // Observer: cuando entra al viewport → agrega "anim-visible"
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('anim-visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
 
-  // Investment spotlight (scale)
-  gsap.from('.inv-spotlight', {
-    scale: 0.92, opacity: 0,
-    duration: 1.2, ease: 'power3.out',
-    scrollTrigger: { trigger: '.inv-spotlight', start: 'top 80%' },
-  });
-  gsap.from('.inv-note', {
-    y: 30, opacity: 0,
-    duration: 1, ease: 'power3.out',
-    scrollTrigger: { trigger: '.inv-note', start: 'top 90%' },
-  });
-  gsap.from('.opp-lead', {
-    y: 30, opacity: 0,
-    duration: 1, ease: 'power3.out',
-    scrollTrigger: { trigger: '.opp-lead', start: 'top 85%' },
-  });
-  gsap.from('.closing-sub, .closing-cta, .closing-meta, .closing-logo', {
-    y: 30, opacity: 0,
-    duration: 1, stagger: 0.15, ease: 'power3.out',
-    scrollTrigger: { trigger: '.closing-cta', start: 'top 90%' },
-  });
+    document.querySelectorAll('.anim-in').forEach(el => io.observe(el));
+  } else {
+    // Fallback: mostrar todos
+    document.querySelectorAll('.anim-in').forEach(el => el.classList.add('anim-visible'));
+  }
+
+  // 🛡️ SAFETY NET: 3s después del load, si algo sigue invisible, mostrarlo
+  setTimeout(() => {
+    document.querySelectorAll('.anim-in:not(.anim-visible)').forEach(el => {
+      el.classList.add('anim-visible');
+    });
+  }, 3000);
 }
 
 /* ════════ COUNTERS ════════ */
